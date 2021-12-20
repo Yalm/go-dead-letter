@@ -1,8 +1,6 @@
 redeliveryPolicyEntries:
   redeliveryPolicy:
-    sds:
-      maximumRedeliveries: 5
-    sdsasda:
+    your-queue-name:
       maximumRedeliveries: 5
       redeliveryDelay: 5000
 

@@ -40,10 +40,10 @@ func decodeHeaders(headers amqp.Table) (*Headers, error) {
 }
 
 func main() {
-	conf, err := config.ReadConf("./conf.yaml")
+	conf, err := config.ReadConf(os.Getenv("RABBITMQ_CONFIG_FILE"))
 	failOnError(err, "Failed to load config file")
 
-	conn, err := amqp.Dial(os.Getenv("AMQ_URL"))
+	conn, err := amqp.Dial(os.Getenv("RABBITMQ_URL"))
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
 	notifyClose := conn.NotifyClose(make(chan *amqp.Error))
@@ -52,11 +52,11 @@ func main() {
 	failOnError(err, "Failed to open a channel")
 	defer ch.Close()
 
-	amqPrefetch := os.Getenv("AMQ_PREFETCH")
+	amqPrefetch := os.Getenv("RABBITMQ_PREFETCH")
 
 	if len(amqPrefetch) > 0 {
 		prefecthCount, err := strconv.Atoi(amqPrefetch)
-		failOnError(err, "Failed to convert AMQ_PREFETCH to interger")
+		failOnError(err, "Failed to convert RABBITMQ_PREFETCH to interger")
 
 		err = ch.Qos(
 			prefecthCount, // prefetch count
@@ -67,13 +67,13 @@ func main() {
 	}
 
 	msgs, err := ch.Consume(
-		utils.Getenv("AMQ_DEAD_LETTER_QUEUE", "dead_letter"), // queue
-		utils.Getenv("AMQ_CONSUMER_NAME", ""),                // consumer
-		false,                                                // auto-ack
-		false,                                                // exclusive
-		false,                                                // no-local
-		false,                                                // no-wait
-		nil,                                                  // args
+		utils.Getenv("RABBITMQ_DEAD_LETTER_QUEUE", "dead_letter"), // queue
+		utils.Getenv("RABBITMQ_CONSUMER_NAME", ""),                // consumer
+		false, // auto-ack
+		false, // exclusive
+		false, // no-local
+		false, // no-wait
+		nil,   // args
 	)
 	failOnError(err, "Failed to register a consumer")
 
