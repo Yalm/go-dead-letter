@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/Yalm/go-dead-letter/config"
-
+	"github.com/Yalm/go-dead-letter/utils"
 	"github.com/mitchellh/mapstructure"
 	"github.com/streadway/amqp"
 )
@@ -43,7 +43,7 @@ func main() {
 	conf, err := config.ReadConf("./conf.yaml")
 	failOnError(err, "Failed to load config file")
 
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	conn, err := amqp.Dial(os.Getenv("AMQ_URL"))
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
 	notifyClose := conn.NotifyClose(make(chan *amqp.Error))
@@ -67,13 +67,13 @@ func main() {
 	}
 
 	msgs, err := ch.Consume(
-		"dead_letter", // queue
-		"",            // consumer
-		false,         // auto-ack
-		false,         // exclusive
-		false,         // no-local
-		false,         // no-wait
-		nil,           // args
+		utils.Getenv("AMQ_DEAD_LETTER_QUEUE", "dead_letter"), // queue
+		utils.Getenv("AMQ_CONSUMER_NAME", ""),                // consumer
+		false,                                                // auto-ack
+		false,                                                // exclusive
+		false,                                                // no-local
+		false,                                                // no-wait
+		nil,                                                  // args
 	)
 	failOnError(err, "Failed to register a consumer")
 
