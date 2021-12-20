@@ -1,0 +1,11 @@
+redeliveryPolicyEntries:
+  redeliveryPolicy:
+    sds:
+      maximumRedeliveries: 5
+    sdsasda:
+      maximumRedeliveries: 5
+      redeliveryDelay: 5000
+
+defaultEntry:
+  maximumRedeliveries: 5
+  redeliveryDelay: 5000
