@@ -13,7 +13,7 @@ import (
 )
 
 type DeathHeader struct {
-	Count int64 `json:"count"`
+	Count int `json:"count"`
 }
 
 type Headers struct {
@@ -40,7 +40,7 @@ func decodeHeaders(headers amqp.Table) (*Headers, error) {
 }
 
 func main() {
-	conf, err := config.ReadConf(os.Getenv("RABBITMQ_CONFIG_FILE"))
+	conf, err := config.ReadConf(os.Getenv("CONFIG_FILE"))
 	failOnError(err, "Failed to load config file")
 
 	conn, err := amqp.Dial(os.Getenv("RABBITMQ_URL"))
@@ -52,14 +52,14 @@ func main() {
 	failOnError(err, "Failed to open a channel")
 	defer ch.Close()
 
-	amqPrefetch := os.Getenv("RABBITMQ_PREFETCH")
+	amqPrefetch := os.Getenv("PREFETCH_COUNT")
 
 	if len(amqPrefetch) > 0 {
-		prefecthCount, err := strconv.Atoi(amqPrefetch)
-		failOnError(err, "Failed to convert RABBITMQ_PREFETCH to interger")
+		prefetchCount, err := strconv.Atoi(amqPrefetch)
+		failOnError(err, "Failed to convert PREFETCH_COUNT to interger")
 
 		err = ch.Qos(
-			prefecthCount, // prefetch count
+			prefetchCount, // prefetch count
 			0,             // prefetch size
 			false,         // global
 		)
@@ -67,13 +67,13 @@ func main() {
 	}
 
 	msgs, err := ch.Consume(
-		utils.Getenv("RABBITMQ_DEAD_LETTER_QUEUE", "dead_letter"), // queue
-		utils.Getenv("RABBITMQ_CONSUMER_NAME", ""),                // consumer
-		false, // auto-ack
-		false, // exclusive
-		false, // no-local
-		false, // no-wait
-		nil,   // args
+		utils.Getenv("DEAD_LETTER_QUEUE", "dead_letter"), // queue
+		utils.Getenv("CONSUMER_NAME", ""),                // consumer
+		false,                                            // auto-ack
+		false,                                            // exclusive
+		false,                                            // no-local
+		false,                                            // no-wait
+		nil,                                              // args
 	)
 	failOnError(err, "Failed to register a consumer")
 
@@ -85,15 +85,16 @@ func main() {
 			redeliveryPolicy := conf.RedeliveryPolicyEntries.RedeliveryPolicy[d.RoutingKey]
 
 			if redeliveryPolicy == (config.RedeliveryPolicy{}) {
-				log.Printf("Queue %s not configured assign default values", d.RoutingKey)
+				log.Printf("Queue %s not configured, assigning default values", d.RoutingKey)
 				redeliveryPolicy = conf.DefaultEntry
 			}
 
-			var count int64 = 0
+			count := 0
+
 			if len(headers.Xdeath) > 0 {
 				count = headers.Xdeath[0].Count
 			} else {
-				log.Printf("x-death header not configured, rejecting queue %s", d.RoutingKey)
+				log.Printf("Header x-death not configured, rejecting queue %s", d.RoutingKey)
 				d.Ack(false)
 				continue
 			}
@@ -105,7 +106,8 @@ func main() {
 			}
 
 			time.Sleep(time.Duration(redeliveryPolicy.RedeliveryDelay) * time.Millisecond)
-			err = ch.Publish(d.Exchange, d.RoutingKey, false, false, amqp.Publishing{
+
+			err = ch.Publish("", d.RoutingKey, false, false, amqp.Publishing{
 				Body:    d.Body,
 				Headers: d.Headers,
 			})

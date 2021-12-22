@@ -6,12 +6,13 @@ import (
 	"log"
 	"os"
 
+	"github.com/Yalm/go-dead-letter/utils"
 	"gopkg.in/yaml.v3"
 )
 
 type RedeliveryPolicy struct {
-	MaximumRedeliveries int64 `yaml:"maximumRedeliveries"`
-	RedeliveryDelay     int64 `yaml:"redeliveryDelay"`
+	MaximumRedeliveries int `yaml:"maximumRedeliveries"`
+	RedeliveryDelay     int `yaml:"redeliveryDelay"`
 }
 
 type RedeliveryPolicyEntries struct {
@@ -24,7 +25,10 @@ type RedeliveryConfig struct {
 }
 
 func setDefaultValue(c *RedeliveryConfig) {
-	c.DefaultEntry = RedeliveryPolicy{MaximumRedeliveries: 5, RedeliveryDelay: 5000}
+	defaultMaximumRedeliveries := utils.GetIntenv("DEFAULT_MAXIMUM_REDELIVERIES", "5")
+	defaultRedeliveryDelay := utils.GetIntenv("DEFAULT_REDELIVERY_DELAY", "5000")
+
+	c.DefaultEntry = RedeliveryPolicy{MaximumRedeliveries: defaultMaximumRedeliveries, RedeliveryDelay: defaultRedeliveryDelay}
 }
 
 func ReadConf(filename string) (*RedeliveryConfig, error) {
