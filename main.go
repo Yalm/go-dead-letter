@@ -55,6 +55,7 @@ func main() {
 	amqPrefetch := os.Getenv("PREFETCH_COUNT")
 	deadLetterQueue := utils.Getenv("DEAD_LETTER_QUEUE", "dead_letter")
 	deadLetterExchange := utils.Getenv("DEAD_LETTER_EXCHANGE", "dead-letter-exchange")
+	consumerName := utils.Getenv("CONSUMER_NAME", "dead-letter-broker")
 
 	err = ch.ExchangeDeclare(
 		deadLetterExchange, // name
@@ -99,15 +100,17 @@ func main() {
 	}
 
 	msgs, err := ch.Consume(
-		utils.Getenv("DEAD_LETTER_QUEUE", "dead_letter"), // queue
-		utils.Getenv("CONSUMER_NAME", ""),                // consumer
-		false,                                            // auto-ack
-		false,                                            // exclusive
-		false,                                            // no-local
-		false,                                            // no-wait
-		nil,                                              // args
+		deadLetterQueue, // queue
+		consumerName,    // consumer
+		false,           // auto-ack
+		false,           // exclusive
+		false,           // no-local
+		false,           // no-wait
+		nil,             // args
 	)
 	failOnError(err, "Failed to register a consumer")
+
+	log.Printf("Application %s successfully started", consumerName)
 
 	go func() {
 		for d := range msgs {
