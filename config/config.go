@@ -33,6 +33,12 @@ func setDefaultValue(c *RedeliveryConfig) {
 
 func ReadConf(filename string) (*RedeliveryConfig, error) {
 	c := &RedeliveryConfig{}
+
+	if len(filename) < 1 {
+		setDefaultValue(c)
+		return c, nil
+	}
+
 	ioutil.ReadFile(filename)
 	buf, err := ioutil.ReadFile(filename)
 
