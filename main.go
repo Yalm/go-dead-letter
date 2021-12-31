@@ -53,6 +53,38 @@ func main() {
 	defer ch.Close()
 
 	amqPrefetch := os.Getenv("PREFETCH_COUNT")
+	deadLetterQueue := utils.Getenv("DEAD_LETTER_QUEUE", "dead_letter")
+	deadLetterExchange := utils.Getenv("DEAD_LETTER_EXCHANGE", "dead-letter-exchange")
+
+	err = ch.ExchangeDeclare(
+		deadLetterExchange, // name
+		"fanout",           // type
+		true,               // durable
+		false,              // auto-deleted
+		true,               // internal
+		false,              // no-wait
+		nil,                // arguments
+	)
+	failOnError(err, "Failed to declare exchange")
+
+	_, err = ch.QueueDeclare(
+		deadLetterQueue, // name
+		true,            // durable
+		false,           // auto-deleted
+		false,           // exclusive
+		false,           // no-wait
+		nil,             // arguments
+	)
+	failOnError(err, "Failed to declare queue")
+
+	err = ch.QueueBind(
+		deadLetterQueue,    // name
+		"",                 // key
+		deadLetterExchange, // auto-deleted
+		false,              // no-wait
+		nil,                // arguments
+	)
+	failOnError(err, "Failed to bind queue")
 
 	if len(amqPrefetch) > 0 {
 		prefetchCount, err := strconv.Atoi(amqPrefetch)
