@@ -52,6 +52,9 @@ func main() {
 	failOnError(err, "Failed to open a channel")
 	defer ch.Close()
 
+	err = ch.Confirm(false)
+	failOnError(err, "Failed to set confirm channel")
+
 	amqPrefetch := os.Getenv("PREFETCH_COUNT")
 	deadLetterQueue := utils.Getenv("DEAD_LETTER_QUEUE", "dead_letter")
 	deadLetterExchange := utils.Getenv("DEAD_LETTER_EXCHANGE", "dead-letter-exchange")
