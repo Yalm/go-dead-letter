@@ -1,9 +1,10 @@
 package utils
 
 import (
-	"log"
 	"os"
 	"strconv"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func Getenv(key, fallback string) string {

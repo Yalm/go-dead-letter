@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"os"
 	"strconv"
 	"time"
@@ -9,6 +8,7 @@ import (
 	"github.com/Yalm/go-dead-letter/config"
 	"github.com/Yalm/go-dead-letter/utils"
 	"github.com/mitchellh/mapstructure"
+	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
 )
 
@@ -40,6 +40,10 @@ func decodeHeaders(headers amqp.Table) (*Headers, error) {
 }
 
 func main() {
+	logLevel, err := log.ParseLevel(utils.Getenv("LOG_LEVEL", "info"))
+	log.SetLevel(logLevel)
+	failOnError(err, "Failed to set log level")
+
 	conf, err := config.ReadConf(os.Getenv("CONFIG_FILE"))
 	failOnError(err, "Failed to load config file")
 
@@ -114,17 +118,17 @@ func main() {
 	)
 	failOnError(err, "Failed to register a consumer")
 
-	log.Printf("Application %s successfully started", consumerName)
+	log.Info("Application %s successfully started", consumerName)
 
 	go func() {
 		for d := range msgs {
-			log.Printf("Received a message: %s", d.Body)
+			log.Info("Received a message: %s", d.Body)
 			headers, err := decodeHeaders(d.Headers)
 			failOnError(err, "Failed to decode headers")
 			redeliveryPolicy := conf.RedeliveryPolicyEntries.RedeliveryPolicy[d.RoutingKey]
 
 			if redeliveryPolicy == (config.RedeliveryPolicy{}) {
-				log.Printf("Queue %s not configured, assigning default values", d.RoutingKey)
+				log.Debug("Queue %s not configured, assigning default values", d.RoutingKey)
 				redeliveryPolicy = conf.DefaultEntry
 			}
 
@@ -133,13 +137,13 @@ func main() {
 			if len(headers.Xdeath) > 0 {
 				count = headers.Xdeath[0].Count
 			} else {
-				log.Printf("Header x-death not configured, rejecting queue %s", d.RoutingKey)
+				log.Warn("Header x-death not configured, rejecting queue %s", d.RoutingKey)
 				d.Ack(false)
 				continue
 			}
 
 			if count > redeliveryPolicy.MaximumRedeliveries {
-				log.Println("Maximum retry limit reached")
+				log.Debug("Maximum retry limit reached")
 				d.Ack(false)
 				continue
 			}
@@ -157,7 +161,7 @@ func main() {
 				Headers: d.Headers,
 			})
 			failOnError(err, "Failed to publish a message")
-			log.Printf("Done")
+			log.Debug("Done")
 			d.Ack(false)
 		}
 	}()
