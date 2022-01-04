@@ -59,6 +59,7 @@ func main() {
 	deadLetterQueue := utils.Getenv("DEAD_LETTER_QUEUE", "dead_letter")
 	deadLetterExchange := utils.Getenv("DEAD_LETTER_EXCHANGE", "dead-letter-exchange")
 	consumerName := utils.Getenv("CONSUMER_NAME", "dead-letter-broker")
+	delayExchange := os.Getenv("DELAY_EXCHANGE")
 
 	err = ch.ExchangeDeclare(
 		deadLetterExchange, // name
@@ -82,11 +83,11 @@ func main() {
 	failOnError(err, "Failed to declare queue")
 
 	err = ch.QueueBind(
-		deadLetterQueue,    // name
-		"",                 // key
-		deadLetterExchange, // auto-deleted
-		false,              // no-wait
-		nil,                // arguments
+		deadLetterQueue,              // name
+		os.Getenv("DEAD_LETTER_KEY"), // key
+		deadLetterExchange,           // exchange
+		false,                        // no-wait
+		nil,                          // arguments
 	)
 	failOnError(err, "Failed to bind queue")
 
@@ -143,9 +144,15 @@ func main() {
 				continue
 			}
 
-			time.Sleep(time.Duration(redeliveryPolicy.RedeliveryDelay) * time.Millisecond)
+			if redeliveryPolicy.RedeliveryDelay > 0 {
+				if delayExchange != "" && delayExchange == redeliveryPolicy.Exchange {
+					d.Headers["x-delay"] = redeliveryPolicy.RedeliveryDelay
+				} else {
+					time.Sleep(time.Duration(redeliveryPolicy.RedeliveryDelay) * time.Millisecond)
+				}
+			}
 
-			err = ch.Publish("", d.RoutingKey, false, false, amqp.Publishing{
+			err = ch.Publish(redeliveryPolicy.Exchange, d.RoutingKey, false, false, amqp.Publishing{
 				Body:    d.Body,
 				Headers: d.Headers,
 			})
