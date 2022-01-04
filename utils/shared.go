@@ -4,7 +4,7 @@ import (
 	"os"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
+	"log"
 )
 
 func Getenv(key, fallback string) string {

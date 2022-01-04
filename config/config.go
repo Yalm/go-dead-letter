@@ -3,9 +3,8 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/Yalm/go-dead-letter/utils"
 	"gopkg.in/yaml.v3"
@@ -45,7 +44,7 @@ func ReadConf(filename string) (*RedeliveryConfig, error) {
 	buf, err := ioutil.ReadFile(filename)
 
 	if os.IsNotExist(err) {
-		log.Warn("File %s not found assigning default values", filename)
+		log.Printf("File %s not found assigning default values", filename)
 		setDefaultValue(c)
 		return c, nil
 	}

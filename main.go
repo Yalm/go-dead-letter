@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -8,7 +9,6 @@ import (
 	"github.com/Yalm/go-dead-letter/config"
 	"github.com/Yalm/go-dead-letter/utils"
 	"github.com/mitchellh/mapstructure"
-	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
 )
 
@@ -40,10 +40,6 @@ func decodeHeaders(headers amqp.Table) (*Headers, error) {
 }
 
 func main() {
-	logLevel, err := log.ParseLevel(utils.Getenv("LOG_LEVEL", "info"))
-	log.SetLevel(logLevel)
-	failOnError(err, "Failed to set log level")
-
 	conf, err := config.ReadConf(os.Getenv("CONFIG_FILE"))
 	failOnError(err, "Failed to load config file")
 
@@ -118,35 +114,29 @@ func main() {
 	)
 	failOnError(err, "Failed to register a consumer")
 
-	log.Info("Application %s successfully started", consumerName)
+	log.Printf("Application %s successfully started", consumerName)
 
 	go func() {
 		for d := range msgs {
-			log.Info("Received a message: %s", d.Body)
-			headers, err := decodeHeaders(d.Headers)
+			log.Printf("Received a message: %s", d.Body)
 			failOnError(err, "Failed to decode headers")
 			redeliveryPolicy := conf.RedeliveryPolicyEntries.RedeliveryPolicy[d.RoutingKey]
 
 			if redeliveryPolicy == (config.RedeliveryPolicy{}) {
-				log.Debug("Queue %s not configured, assigning default values", d.RoutingKey)
+				log.Printf("Queue %s not configured, assigning default values", d.RoutingKey)
 				redeliveryPolicy = conf.DefaultEntry
 			}
 
-			count := 0
-
-			if len(headers.Xdeath) > 0 {
-				count = headers.Xdeath[0].Count
-			} else {
-				log.Warn("Header x-death not configured, rejecting queue %s", d.RoutingKey)
-				d.Ack(false)
-				continue
-			}
+			count, err := strconv.Atoi(d.Headers["x-retry"])
+			failOnError(err, "Failed to convert x-retry to interger")
 
 			if count > redeliveryPolicy.MaximumRedeliveries {
-				log.Debug("Maximum retry limit reached")
+				log.Printf("Maximum retry limit reached")
 				d.Ack(false)
 				continue
 			}
+
+			d.Headers["x-retry"] = count + 1
 
 			if redeliveryPolicy.RedeliveryDelay > 0 {
 				if delayExchange != "" && delayExchange == redeliveryPolicy.Exchange {
@@ -161,7 +151,7 @@ func main() {
 				Headers: d.Headers,
 			})
 			failOnError(err, "Failed to publish a message")
-			log.Debug("Done")
+			log.Printf("Done")
 			d.Ack(false)
 		}
 	}()
