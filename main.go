@@ -17,7 +17,8 @@ type DeathHeader struct {
 }
 
 type Headers struct {
-	Xdeath []DeathHeader `json:"x-death"`
+	XDeath []DeathHeader `json:"x-death"`
+	XRetry int           `json:"x-retry"`
 }
 
 var output = &Headers{}
@@ -33,11 +34,13 @@ func failOnError(err error, msg string) {
 	}
 }
 
-func decodeHeaders(headers amqp.Table) (*Headers, error) {
-	decoder, error := mapstructure.NewDecoder(cfg)
-	decoder.Decode(headers)
+func decodeHeaders(headers amqp.Table, decoder *mapstructure.Decoder) (*Headers, error) {
+	error := decoder.Decode(headers)
 	return output, error
 }
+
+const RETRY_ATTEMPT = "x-retry"
+const DELAY_INTERVAL = "x-delay"
 
 func main() {
 	conf, err := config.ReadConf(os.Getenv("CONFIG_FILE"))
@@ -114,10 +117,14 @@ func main() {
 	)
 	failOnError(err, "Failed to register a consumer")
 
+	decoder, err := mapstructure.NewDecoder(cfg)
+	failOnError(err, "Failed to register decoder")
+
 	log.Printf("Application %s successfully started", consumerName)
 
 	go func() {
 		for d := range msgs {
+			headers, err := decodeHeaders(d.Headers, decoder)
 			log.Printf("Received a message: %s", d.Body)
 			failOnError(err, "Failed to decode headers")
 			redeliveryPolicy := conf.RedeliveryPolicyEntries.RedeliveryPolicy[d.RoutingKey]
@@ -127,20 +134,19 @@ func main() {
 				redeliveryPolicy = conf.DefaultEntry
 			}
 
-			count, err := strconv.Atoi(d.Headers["x-retry"])
-			failOnError(err, "Failed to convert x-retry to interger")
+			count := headers.XRetry
 
-			if count > redeliveryPolicy.MaximumRedeliveries {
+			if (count + 1) > redeliveryPolicy.MaximumRedeliveries {
 				log.Printf("Maximum retry limit reached")
 				d.Ack(false)
 				continue
 			}
 
-			d.Headers["x-retry"] = count + 1
+			d.Headers[RETRY_ATTEMPT] = count + 1
 
 			if redeliveryPolicy.RedeliveryDelay > 0 {
 				if delayExchange != "" && delayExchange == redeliveryPolicy.Exchange {
-					d.Headers["x-delay"] = redeliveryPolicy.RedeliveryDelay
+					d.Headers[DELAY_INTERVAL] = redeliveryPolicy.RedeliveryDelay
 				} else {
 					time.Sleep(time.Duration(redeliveryPolicy.RedeliveryDelay) * time.Millisecond)
 				}
