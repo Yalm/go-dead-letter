@@ -81,7 +81,9 @@ func main() {
 		false,           // auto-deleted
 		false,           // exclusive
 		false,           // no-wait
-		nil,             // arguments
+		amqp.Table{
+			"x-queue-mode": "lazy",
+		}, // arguments
 	)
 	failOnError(err, "Failed to declare queue")
 
@@ -138,7 +140,7 @@ func main() {
 
 			if (count + 1) > redeliveryPolicy.MaximumRedeliveries {
 				log.Printf("Maximum retry limit reached")
-				d.Ack(false)
+				d.Reject(false)
 				continue
 			}
 
