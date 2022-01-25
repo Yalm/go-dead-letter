@@ -13,7 +13,10 @@ import (
 )
 
 type DeathHeader struct {
-	Count int `json:"count"`
+	Count       int      `json:"count"`
+	Exchange    string   `json:"exchange"`
+	RoutingKeys []string `json:"routing-keys"`
+	Queue       string   `json:"queue"`
 }
 
 type Headers struct {
@@ -41,6 +44,8 @@ func decodeHeaders(headers amqp.Table, decoder *mapstructure.Decoder) (*Headers,
 
 const RETRY_ATTEMPT = "x-retry"
 const DELAY_INTERVAL = "x-delay"
+const EXCHANGE = "exchange"
+const ROUTING_KEY = "routing-keys"
 
 func main() {
 	conf, err := config.ReadConf(os.Getenv("CONFIG_FILE"))
@@ -127,12 +132,24 @@ func main() {
 	go func() {
 		for d := range msgs {
 			headers, err := decodeHeaders(d.Headers, decoder)
+
+			if len(headers.XDeath) < 1 {
+				log.Printf("Header x-death not configured, rejecting queue %s", d.RoutingKey)
+				d.Reject(false)
+				continue
+			}
+
+			causeOfDeath := headers.XDeath[0]
+			exchange := causeOfDeath.Exchange
+			queue := causeOfDeath.Queue
+			routingKey := causeOfDeath.RoutingKeys[0]
+
 			log.Printf("Received a message: %s", d.Body)
 			failOnError(err, "Failed to decode headers")
-			redeliveryPolicy := conf.RedeliveryPolicyEntries.RedeliveryPolicy[d.RoutingKey]
+			redeliveryPolicy := conf.RedeliveryPolicyEntries.RedeliveryPolicy[queue]
 
 			if redeliveryPolicy == (config.RedeliveryPolicy{}) {
-				log.Printf("Queue %s not configured, assigning default values", d.RoutingKey)
+				log.Printf("Queue %s not configured, assigning default values", queue)
 				redeliveryPolicy = conf.DefaultEntry
 			}
 
@@ -145,18 +162,22 @@ func main() {
 			}
 
 			d.Headers[RETRY_ATTEMPT] = count + 1
+			delete(d.Headers, DELAY_INTERVAL)
 
 			if redeliveryPolicy.RedeliveryDelay > 0 {
-				if delayExchange != "" && delayExchange == redeliveryPolicy.Exchange {
+				if delayExchange != "" {
+					exchange = delayExchange
 					d.Headers[DELAY_INTERVAL] = redeliveryPolicy.RedeliveryDelay
 				} else {
 					time.Sleep(time.Duration(redeliveryPolicy.RedeliveryDelay) * time.Millisecond)
 				}
 			}
 
-			err = ch.Publish(redeliveryPolicy.Exchange, d.RoutingKey, false, false, amqp.Publishing{
-				Body:    d.Body,
-				Headers: d.Headers,
+			err = ch.Publish(exchange, routingKey, false, false, amqp.Publishing{
+				Body:         d.Body,
+				ContentType:  d.ContentType,
+				DeliveryMode: d.DeliveryMode,
+				Headers:      d.Headers,
 			})
 			failOnError(err, "Failed to publish a message")
 			log.Printf("Done")

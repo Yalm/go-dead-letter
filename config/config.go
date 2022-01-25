@@ -11,9 +11,8 @@ import (
 )
 
 type RedeliveryPolicy struct {
-	MaximumRedeliveries int    `yaml:"maximumRedeliveries"`
-	RedeliveryDelay     int    `yaml:"redeliveryDelay"`
-	Exchange            string `yaml:"exchange"`
+	MaximumRedeliveries int `yaml:"maximumRedeliveries"`
+	RedeliveryDelay     int `yaml:"redeliveryDelay"`
 }
 
 type RedeliveryPolicyEntries struct {
@@ -28,8 +27,10 @@ type RedeliveryConfig struct {
 func setDefaultValue(c *RedeliveryConfig) {
 	defaultMaximumRedeliveries := utils.GetIntenv("DEFAULT_MAXIMUM_REDELIVERIES", "5")
 	defaultRedeliveryDelay := utils.GetIntenv("DEFAULT_REDELIVERY_DELAY", "5000")
-	defaultExchange := os.Getenv("DEFAULT_EXCHANGE")
-	c.DefaultEntry = RedeliveryPolicy{MaximumRedeliveries: defaultMaximumRedeliveries, RedeliveryDelay: defaultRedeliveryDelay, Exchange: defaultExchange}
+	c.DefaultEntry = RedeliveryPolicy{
+		MaximumRedeliveries: defaultMaximumRedeliveries,
+		RedeliveryDelay:     defaultRedeliveryDelay,
+	}
 }
 
 func ReadConf(filename string) (*RedeliveryConfig, error) {
