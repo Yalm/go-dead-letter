@@ -129,8 +129,9 @@ func main() {
 
 	log.Printf("Application %s successfully started", consumerName)
 
-	go func() {
-		for d := range msgs {
+	for {
+		select {
+		case d := <-msgs:
 			headers, err := decodeHeaders(d.Headers, decoder)
 
 			if len(headers.XDeath) < 1 {
@@ -182,8 +183,8 @@ func main() {
 			failOnError(err, "Failed to publish a message")
 			log.Printf("Done")
 			d.Ack(false)
+		case err := <-notifyClose:
+			log.Fatalf(err.Error())
 		}
-	}()
-
-	<-notifyClose
+	}
 }
