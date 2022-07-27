@@ -9,7 +9,7 @@ import (
 	"github.com/Yalm/go-dead-letter/config"
 	"github.com/Yalm/go-dead-letter/utils"
 	"github.com/mitchellh/mapstructure"
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type DeathHeader struct {
@@ -42,10 +42,10 @@ func decodeHeaders(headers amqp.Table, decoder *mapstructure.Decoder) (*Headers,
 	return output, error
 }
 
-const RETRY_ATTEMPT = "x-retry"
-const DELAY_INTERVAL = "x-delay"
-const EXCHANGE = "exchange"
-const ROUTING_KEY = "routing-keys"
+const (
+	RETRY_ATTEMPT  = "x-retry"
+	DELAY_INTERVAL = "x-delay"
+)
 
 func main() {
 	conf, err := config.ReadConf(os.Getenv("CONFIG_FILE"))
@@ -134,7 +134,7 @@ func main() {
 		case d := <-msgs:
 			headers, err := decodeHeaders(d.Headers, decoder)
 
-			if len(headers.XDeath) < 1 {
+			if len(d.Headers) < 1 {
 				log.Printf("Header x-death not configured, rejecting queue %s", d.RoutingKey)
 				d.Reject(false)
 				continue
@@ -146,7 +146,7 @@ func main() {
 			routingKey := causeOfDeath.RoutingKeys[0]
 
 			log.Printf("Received a message: %s", d.Body)
-			failOnError(err, "Failed to decode headers")
+			log.Printf("Failed to decode headers: %s", err)
 			redeliveryPolicy := conf.RedeliveryPolicyEntries.RedeliveryPolicy[queue]
 
 			if redeliveryPolicy == (config.RedeliveryPolicy{}) {
@@ -154,24 +154,21 @@ func main() {
 				redeliveryPolicy = conf.DefaultEntry
 			}
 
-			count := headers.XRetry
+			count := headers.XRetry + 1
 
-			if (count + 1) > redeliveryPolicy.MaximumRedeliveries {
+			if count > redeliveryPolicy.MaximumRedeliveries {
 				log.Printf("Maximum retry limit reached")
 				d.Reject(false)
 				continue
 			}
 
-			d.Headers[RETRY_ATTEMPT] = count + 1
-			delete(d.Headers, DELAY_INTERVAL)
+			d.Headers[RETRY_ATTEMPT] = count
 
-			if redeliveryPolicy.RedeliveryDelay > 0 {
-				if delayExchange != "" {
-					exchange = delayExchange
-					d.Headers[DELAY_INTERVAL] = redeliveryPolicy.RedeliveryDelay
-				} else {
-					time.Sleep(time.Duration(redeliveryPolicy.RedeliveryDelay) * time.Millisecond)
-				}
+			if delayExchange != "" && redeliveryPolicy.RedeliveryDelay > 0 {
+				exchange = delayExchange
+				d.Headers[DELAY_INTERVAL] = redeliveryPolicy.RedeliveryDelay
+			} else if redeliveryPolicy.RedeliveryDelay > 0 {
+				time.Sleep(time.Duration(redeliveryPolicy.RedeliveryDelay) * time.Millisecond)
 			}
 
 			err = ch.Publish(exchange, routingKey, false, false, amqp.Publishing{
@@ -180,7 +177,7 @@ func main() {
 				DeliveryMode: d.DeliveryMode,
 				Headers:      d.Headers,
 			})
-			failOnError(err, "Failed to publish a message")
+			log.Printf("Failed to publish a message: %s", err)
 			log.Printf("Done")
 			d.Ack(false)
 		case err := <-notifyClose:

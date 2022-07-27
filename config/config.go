@@ -10,9 +10,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type BackOffOptions struct {
+	InitialInterval int `yaml:"initialInterval"`
+	Multiplier      int `yaml:"multiplier"`
+	MaxInterval     int `yaml:"maxInterval"`
+}
+
 type RedeliveryPolicy struct {
-	MaximumRedeliveries int `yaml:"maximumRedeliveries"`
-	RedeliveryDelay     int `yaml:"redeliveryDelay"`
+	MaximumRedeliveries int            `yaml:"maximumRedeliveries"`
+	RedeliveryDelay     int            `yaml:"redeliveryDelay"`
+	BackOffOptions      BackOffOptions `yaml:"backOffOptions"`
 }
 
 type RedeliveryPolicyEntries struct {
