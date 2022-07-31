@@ -17,16 +17,11 @@ func failOnError(err error, msg string) {
 	}
 }
 
-const (
-	RETRY_ATTEMPT  = "x-retry"
-	DELAY_INTERVAL = "x-delay"
-)
-
 func main() {
 	conf, err := config.ReadConf(os.Getenv("CONFIG_FILE"))
 	failOnError(err, "Failed to load config file")
 
-	conn, err := amqp.Dial("amqp://localhost")
+	conn, err := amqp.Dial(os.Getenv("RABBITMQ_URL"))
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
 	notifyClose := conn.NotifyClose(make(chan *amqp.Error))
