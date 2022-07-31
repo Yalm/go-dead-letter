@@ -68,7 +68,13 @@ func (ctx *rejectedConsumer) HandleRejectedMessage(message *amqp.Delivery, chann
 		DeliveryMode: message.DeliveryMode,
 		Headers:      message.Headers,
 	})
-	log.Printf("Failed to publish a message: %s", err)
+
+	if err != nil {
+		log.Printf("Failed to publish a message: %s", err)
+		message.Reject(true)
+		return
+	}
+
 	log.Printf("Done")
 	message.Ack(false)
 }
